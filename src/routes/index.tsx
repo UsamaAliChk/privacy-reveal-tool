@@ -20,7 +20,14 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { TaxonomyTree } from "@/components/TaxonomyTree";
 import { cn } from "@/lib/utils";
+import {
+  taxonomyAllIds,
+  taxonomyGroups,
+  taxonomyTotalCount,
+  type TaxonomyGroup,
+} from "@/lib/vsme-taxonomy";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -42,7 +49,7 @@ export const Route = createFileRoute("/")({
   component: DisclosureWorkspace,
 });
 
-type Treatment = "switch" | "trailing" | "review";
+type Treatment = "switch" | "trailing" | "review" | "tree";
 type PreviewMode = "internal" | "public";
 
 type DisclosureField = {
@@ -102,6 +109,7 @@ const treatments: Array<{ id: Treatment; label: string }> = [
   { id: "switch", label: "Inline toggle" },
   { id: "trailing", label: "Trailing lock" },
   { id: "review", label: "Bulk review" },
+  { id: "tree", label: "Hierarchical tree" },
 ];
 
 function StatusBadge({ confidential }: { confidential: boolean }) {
