@@ -296,8 +296,14 @@ function DisclosureWorkspace() {
             <section aria-labelledby="disclosure-fields-heading">
               <div className="mb-4 flex items-center justify-between">
                 <div>
-                  <h2 id="disclosure-fields-heading" className="font-display text-lg font-semibold">Disclosure fields</h2>
-                  <p className="mt-1 text-xs text-muted-foreground">Six required fields · values save automatically</p>
+                  <h2 id="disclosure-fields-heading" className="font-display text-lg font-semibold">
+                    {isTree ? "VSME taxonomy fields" : "Disclosure fields"}
+                  </h2>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    {isTree
+                      ? `${taxonomyGroups.length} parent sections · ${taxonomyTotalCount} fields · parent selections cascade`
+                      : "Six required fields · values save automatically"}
+                  </p>
                 </div>
                 <Tooltip>
                   <TooltipTrigger asChild>
@@ -309,7 +315,14 @@ function DisclosureWorkspace() {
                 </Tooltip>
               </div>
 
-              {treatment === "review" ? (
+              {isTree ? (
+                <TaxonomyTree
+                  confidentialIds={confidentialIds}
+                  onSetGroup={setTaxonomyGroup}
+                  onToggleNode={setTaxonomyNode}
+                  onSetAll={setAllTaxonomy}
+                />
+              ) : treatment === "review" ? (
                 <BulkReview fields={fields} onChange={setConfidential} onSetAll={setAll} />
               ) : (
                 <div className="grid gap-3 md:grid-cols-2">
@@ -361,18 +374,42 @@ function DisclosureWorkspace() {
                 <div className="min-h-[420px] bg-document p-4 sm:p-6">
                   <div className="mx-auto min-h-[360px] max-w-sm border border-border bg-surface px-6 py-7 shadow-paper sm:px-8">
                     <div className="border-b border-foreground pb-4">
-                      <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Annual financial disclosure</p>
+                      <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
+                        {isTree ? "VSME sustainability report" : "Annual financial disclosure"}
+                      </p>
                       <h3 className="mt-1.5 font-display text-xl font-semibold">Northstar Dynamics, Inc.</h3>
                       <p className="mt-1 text-xs text-muted-foreground">Fiscal year ending December 31, 2026</p>
                     </div>
-                    <div className="divide-y divide-border">
-                      {visibleFields.map((field) => (
-                        <div key={field.id} className="flex items-start justify-between gap-5 py-3.5">
-                          <span className="text-xs leading-5 text-muted-foreground">{field.label}</span>
-                          <span className="text-right text-xs font-semibold leading-5">{field.value}</span>
-                        </div>
-                      ))}
-                    </div>
+                    {isTree ? (
+                      <div className="max-h-[420px] space-y-3 overflow-y-auto py-3">
+                        {visibleTaxonomy.map(({ group, hidden, children }) => (
+                          <div key={group.id}>
+                            <p className={cn("text-xs font-semibold", hidden && "text-muted-foreground line-through")}>
+                              {group.code ? `${group.code} · ` : ""}
+                              {group.title}
+                            </p>
+                            {children.length > 0 && (
+                              <ul className="mt-1 space-y-0.5 pl-3">
+                                {children.map((child) => (
+                                  <li key={child.id} className="text-[11px] leading-5 text-muted-foreground">
+                                    · {child.title}
+                                  </li>
+                                ))}
+                              </ul>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="divide-y divide-border">
+                        {visibleFields.map((field) => (
+                          <div key={field.id} className="flex items-start justify-between gap-5 py-3.5">
+                            <span className="text-xs leading-5 text-muted-foreground">{field.label}</span>
+                            <span className="text-right text-xs font-semibold leading-5">{field.value}</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
                     {previewMode === "public" && confidentialCount > 0 && (
                       <div className="mt-5 flex items-start gap-2 border-l-2 border-confidential bg-confidential-soft p-3 text-xs text-confidential">
                         <ShieldCheck className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
@@ -388,7 +425,11 @@ function DisclosureWorkspace() {
                     <span className="text-border">/</span>
                     <span className="font-semibold text-confidential">{confidentialCount} confidential</span>
                   </div>
-                  <span className="text-xs text-muted-foreground">{previewMode === "public" ? `${publicCount} of 6 included` : "6 of 6 visible"}</span>
+                  <span className="text-xs text-muted-foreground">
+                    {previewMode === "public"
+                      ? `${publicCount} of ${totalCount} included`
+                      : `${totalCount} of ${totalCount} visible`}
+                  </span>
                 </div>
               </div>
             </aside>
