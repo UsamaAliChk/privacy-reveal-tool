@@ -131,12 +131,30 @@ function DisclosureWorkspace() {
   const [fields, setFields] = useState(initialFields);
   const [treatment, setTreatment] = useState<Treatment>("switch");
   const [previewMode, setPreviewMode] = useState<PreviewMode>("public");
+  const [confidentialIds, setConfidentialIds] = useState<Set<string>>(() => new Set<string>());
 
-  const confidentialCount = fields.filter((field) => field.confidential).length;
-  const publicCount = fields.length - confidentialCount;
+  const isTree = treatment === "tree";
+  const totalCount = isTree ? taxonomyTotalCount : fields.length;
+  const confidentialCount = isTree ? confidentialIds.size : fields.filter((field) => field.confidential).length;
+  const publicCount = totalCount - confidentialCount;
+
   const visibleFields = useMemo(
     () => (previewMode === "internal" ? fields : fields.filter((field) => !field.confidential)),
     [fields, previewMode],
+  );
+
+  const visibleTaxonomy = useMemo(
+    () =>
+      taxonomyGroups
+        .map((group) => ({
+          group,
+          hidden: previewMode === "public" && confidentialIds.has(group.id),
+          children: group.children.filter(
+            (child) => previewMode === "internal" || !confidentialIds.has(child.id),
+          ),
+        }))
+        .filter((entry) => !entry.hidden || entry.children.length > 0),
+    [confidentialIds, previewMode],
   );
 
   const setConfidential = (id: string, confidential: boolean) => {
@@ -151,6 +169,38 @@ function DisclosureWorkspace() {
     }
   };
 
+  const setTaxonomyNode = (id: string, title: string, confidential: boolean) => {
+    setConfidentialIds((current) => {
+      const next = new Set(current);
+      if (confidential) next.add(id);
+      else next.delete(id);
+      return next;
+    });
+    toast.success(`${title} is now ${confidential ? "confidential" : "public"}`);
+  };
+
+  const setTaxonomyGroup = (group: TaxonomyGroup, confidential: boolean) => {
+    const ids = [group.id, ...group.children.map((child) => child.id)];
+    setConfidentialIds((current) => {
+      const next = new Set(current);
+      for (const id of ids) {
+        if (confidential) next.add(id);
+        else next.delete(id);
+      }
+      return next;
+    });
+    toast.success(`${group.title} marked ${confidential ? "confidential" : "public"}`, {
+      description: group.children.length
+        ? `${group.children.length} child fields updated to match.`
+        : undefined,
+    });
+  };
+
+  const setAllTaxonomy = (confidential: boolean) => {
+    setConfidentialIds(confidential ? new Set(taxonomyAllIds) : new Set<string>());
+    toast.success(confidential ? "All taxonomy fields marked confidential" : "All taxonomy fields reset to public");
+  };
+
   const updateValue = (id: string, value: string) => {
     setFields((current) => current.map((item) => (item.id === id ? { ...item, value } : item)));
   };
@@ -161,14 +211,18 @@ function DisclosureWorkspace() {
   };
 
   const exportPublic = () => {
-    const exportData = Object.fromEntries(
-      fields.filter((field) => !field.confidential).map((field) => [field.label, field.value]),
-    );
+    const exportData = isTree
+      ? {
+          disclosures: taxonomyAllIds.filter((id) => !confidentialIds.has(id)),
+        }
+      : Object.fromEntries(
+          fields.filter((field) => !field.confidential).map((field) => [field.label, field.value]),
+        );
     const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: "application/json" });
     const url = URL.createObjectURL(blob);
     const anchor = document.createElement("a");
     anchor.href = url;
-    anchor.download = "northstar-public-disclosure.json";
+    anchor.download = isTree ? "vsme-public-disclosure.json" : "northstar-public-disclosure.json";
     anchor.click();
     URL.revokeObjectURL(url);
     toast.success("Public disclosure exported", {
