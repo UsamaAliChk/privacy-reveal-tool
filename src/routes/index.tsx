@@ -20,7 +20,14 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { TaxonomyTree } from "@/components/TaxonomyTree";
 import { cn } from "@/lib/utils";
+import {
+  taxonomyAllIds,
+  taxonomyGroups,
+  taxonomyTotalCount,
+  type TaxonomyGroup,
+} from "@/lib/vsme-taxonomy";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -42,7 +49,7 @@ export const Route = createFileRoute("/")({
   component: DisclosureWorkspace,
 });
 
-type Treatment = "switch" | "trailing" | "review";
+type Treatment = "switch" | "trailing" | "review" | "tree";
 type PreviewMode = "internal" | "public";
 
 type DisclosureField = {
@@ -102,6 +109,7 @@ const treatments: Array<{ id: Treatment; label: string }> = [
   { id: "switch", label: "Inline toggle" },
   { id: "trailing", label: "Trailing lock" },
   { id: "review", label: "Bulk review" },
+  { id: "tree", label: "Hierarchical tree" },
 ];
 
 function StatusBadge({ confidential }: { confidential: boolean }) {
@@ -123,12 +131,30 @@ function DisclosureWorkspace() {
   const [fields, setFields] = useState(initialFields);
   const [treatment, setTreatment] = useState<Treatment>("switch");
   const [previewMode, setPreviewMode] = useState<PreviewMode>("public");
+  const [confidentialIds, setConfidentialIds] = useState<Set<string>>(() => new Set<string>());
 
-  const confidentialCount = fields.filter((field) => field.confidential).length;
-  const publicCount = fields.length - confidentialCount;
+  const isTree = treatment === "tree";
+  const totalCount = isTree ? taxonomyTotalCount : fields.length;
+  const confidentialCount = isTree ? confidentialIds.size : fields.filter((field) => field.confidential).length;
+  const publicCount = totalCount - confidentialCount;
+
   const visibleFields = useMemo(
     () => (previewMode === "internal" ? fields : fields.filter((field) => !field.confidential)),
     [fields, previewMode],
+  );
+
+  const visibleTaxonomy = useMemo(
+    () =>
+      taxonomyGroups
+        .map((group) => ({
+          group,
+          hidden: previewMode === "public" && confidentialIds.has(group.id),
+          children: group.children.filter(
+            (child) => previewMode === "internal" || !confidentialIds.has(child.id),
+          ),
+        }))
+        .filter((entry) => !entry.hidden || entry.children.length > 0),
+    [confidentialIds, previewMode],
   );
 
   const setConfidential = (id: string, confidential: boolean) => {
@@ -143,6 +169,38 @@ function DisclosureWorkspace() {
     }
   };
 
+  const setTaxonomyNode = (id: string, title: string, confidential: boolean) => {
+    setConfidentialIds((current) => {
+      const next = new Set(current);
+      if (confidential) next.add(id);
+      else next.delete(id);
+      return next;
+    });
+    toast.success(`${title} is now ${confidential ? "confidential" : "public"}`);
+  };
+
+  const setTaxonomyGroup = (group: TaxonomyGroup, confidential: boolean) => {
+    const ids = [group.id, ...group.children.map((child) => child.id)];
+    setConfidentialIds((current) => {
+      const next = new Set(current);
+      for (const id of ids) {
+        if (confidential) next.add(id);
+        else next.delete(id);
+      }
+      return next;
+    });
+    toast.success(`${group.title} marked ${confidential ? "confidential" : "public"}`, {
+      description: group.children.length
+        ? `${group.children.length} child fields updated to match.`
+        : undefined,
+    });
+  };
+
+  const setAllTaxonomy = (confidential: boolean) => {
+    setConfidentialIds(confidential ? new Set(taxonomyAllIds) : new Set<string>());
+    toast.success(confidential ? "All taxonomy fields marked confidential" : "All taxonomy fields reset to public");
+  };
+
   const updateValue = (id: string, value: string) => {
     setFields((current) => current.map((item) => (item.id === id ? { ...item, value } : item)));
   };
@@ -153,14 +211,18 @@ function DisclosureWorkspace() {
   };
 
   const exportPublic = () => {
-    const exportData = Object.fromEntries(
-      fields.filter((field) => !field.confidential).map((field) => [field.label, field.value]),
-    );
+    const exportData = isTree
+      ? {
+          disclosures: taxonomyAllIds.filter((id) => !confidentialIds.has(id)),
+        }
+      : Object.fromEntries(
+          fields.filter((field) => !field.confidential).map((field) => [field.label, field.value]),
+        );
     const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: "application/json" });
     const url = URL.createObjectURL(blob);
     const anchor = document.createElement("a");
     anchor.href = url;
-    anchor.download = "northstar-public-disclosure.json";
+    anchor.download = isTree ? "vsme-public-disclosure.json" : "northstar-public-disclosure.json";
     anchor.click();
     URL.revokeObjectURL(url);
     toast.success("Public disclosure exported", {
@@ -234,8 +296,14 @@ function DisclosureWorkspace() {
             <section aria-labelledby="disclosure-fields-heading">
               <div className="mb-4 flex items-center justify-between">
                 <div>
-                  <h2 id="disclosure-fields-heading" className="font-display text-lg font-semibold">Disclosure fields</h2>
-                  <p className="mt-1 text-xs text-muted-foreground">Six required fields · values save automatically</p>
+                  <h2 id="disclosure-fields-heading" className="font-display text-lg font-semibold">
+                    {isTree ? "VSME taxonomy fields" : "Disclosure fields"}
+                  </h2>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    {isTree
+                      ? `${taxonomyGroups.length} parent sections · ${taxonomyTotalCount} fields · parent selections cascade`
+                      : "Six required fields · values save automatically"}
+                  </p>
                 </div>
                 <Tooltip>
                   <TooltipTrigger asChild>
@@ -247,7 +315,14 @@ function DisclosureWorkspace() {
                 </Tooltip>
               </div>
 
-              {treatment === "review" ? (
+              {isTree ? (
+                <TaxonomyTree
+                  confidentialIds={confidentialIds}
+                  onSetGroup={setTaxonomyGroup}
+                  onToggleNode={setTaxonomyNode}
+                  onSetAll={setAllTaxonomy}
+                />
+              ) : treatment === "review" ? (
                 <BulkReview fields={fields} onChange={setConfidential} onSetAll={setAll} />
               ) : (
                 <div className="grid gap-3 md:grid-cols-2">
@@ -299,18 +374,42 @@ function DisclosureWorkspace() {
                 <div className="min-h-[420px] bg-document p-4 sm:p-6">
                   <div className="mx-auto min-h-[360px] max-w-sm border border-border bg-surface px-6 py-7 shadow-paper sm:px-8">
                     <div className="border-b border-foreground pb-4">
-                      <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Annual financial disclosure</p>
+                      <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
+                        {isTree ? "VSME sustainability report" : "Annual financial disclosure"}
+                      </p>
                       <h3 className="mt-1.5 font-display text-xl font-semibold">Northstar Dynamics, Inc.</h3>
                       <p className="mt-1 text-xs text-muted-foreground">Fiscal year ending December 31, 2026</p>
                     </div>
-                    <div className="divide-y divide-border">
-                      {visibleFields.map((field) => (
-                        <div key={field.id} className="flex items-start justify-between gap-5 py-3.5">
-                          <span className="text-xs leading-5 text-muted-foreground">{field.label}</span>
-                          <span className="text-right text-xs font-semibold leading-5">{field.value}</span>
-                        </div>
-                      ))}
-                    </div>
+                    {isTree ? (
+                      <div className="max-h-[420px] space-y-3 overflow-y-auto py-3">
+                        {visibleTaxonomy.map(({ group, hidden, children }) => (
+                          <div key={group.id}>
+                            <p className={cn("text-xs font-semibold", hidden && "text-muted-foreground line-through")}>
+                              {group.code ? `${group.code} · ` : ""}
+                              {group.title}
+                            </p>
+                            {children.length > 0 && (
+                              <ul className="mt-1 space-y-0.5 pl-3">
+                                {children.map((child) => (
+                                  <li key={child.id} className="text-[11px] leading-5 text-muted-foreground">
+                                    · {child.title}
+                                  </li>
+                                ))}
+                              </ul>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="divide-y divide-border">
+                        {visibleFields.map((field) => (
+                          <div key={field.id} className="flex items-start justify-between gap-5 py-3.5">
+                            <span className="text-xs leading-5 text-muted-foreground">{field.label}</span>
+                            <span className="text-right text-xs font-semibold leading-5">{field.value}</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
                     {previewMode === "public" && confidentialCount > 0 && (
                       <div className="mt-5 flex items-start gap-2 border-l-2 border-confidential bg-confidential-soft p-3 text-xs text-confidential">
                         <ShieldCheck className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
@@ -326,7 +425,11 @@ function DisclosureWorkspace() {
                     <span className="text-border">/</span>
                     <span className="font-semibold text-confidential">{confidentialCount} confidential</span>
                   </div>
-                  <span className="text-xs text-muted-foreground">{previewMode === "public" ? `${publicCount} of 6 included` : "6 of 6 visible"}</span>
+                  <span className="text-xs text-muted-foreground">
+                    {previewMode === "public"
+                      ? `${publicCount} of ${totalCount} included`
+                      : `${totalCount} of ${totalCount} visible`}
+                  </span>
                 </div>
               </div>
             </aside>
