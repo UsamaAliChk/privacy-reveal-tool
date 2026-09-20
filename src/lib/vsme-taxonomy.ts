@@ -66,8 +66,8 @@ export type TaxonomyGroup = TaxonomyNode & {
 function humanize(tag: string): { code: string | null; title: string } {
   let name = tag.replace(/^vsme:/, "").replace(/Member$/, "");
   const codeMatch = name.match(/^([A-C]\d+)(-)?/);
-  const code = codeMatch ? codeMatch[1] : null;
-  if (code) name = name.slice(codeMatch![0].length);
+  const code = codeMatch?.[1] ?? null;
+  if (codeMatch) name = name.slice(codeMatch[0].length);
 
   const title = name
     // split camel/Pascal boundaries while keeping acronyms together
@@ -84,12 +84,12 @@ export const taxonomyGroups: TaxonomyGroup[] = (() => {
 
   for (const tag of RAW_TAGS) {
     const { code, title } = humanize(tag);
-    const isChild =
-      code !== null && !tag.includes(`${code}-`) && groups.length > 0 && groups[groups.length - 1].code === code;
+    const last = groups[groups.length - 1];
+    const isChild = code !== null && !tag.includes(`${code}-`) && last !== undefined && last.code === code;
 
     const node: TaxonomyNode = { id: tag, tag, code, title };
-    if (isChild) {
-      groups[groups.length - 1].children.push(node);
+    if (isChild && last) {
+      last.children.push(node);
     } else {
       groups.push({ ...node, children: [] });
     }
