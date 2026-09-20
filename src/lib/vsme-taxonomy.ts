@@ -74,6 +74,10 @@ function humanize(tag: string): { code: string | null; title: string } {
     .replace(/([a-z0-9])([A-Z])/g, "$1 $2")
     .replace(/([A-Z]+)([A-Z][a-z])/g, "$1 $2")
     .replace(/\s+/g, " ")
+    // re-join plural "S" suffixes and common unit splits
+    .replace(/([a-z]) S\b/g, "$1s")
+    .replace(/\bM Wh\b/g, "MWh")
+    .replace(/\bGHG\b/g, "GHG")
     .trim();
 
   return { code, title: title.charAt(0).toUpperCase() + title.slice(1) };
