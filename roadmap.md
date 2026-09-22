@@ -5,3 +5,4 @@
 - [x] Add internal and public live previews with field counts
 - [x] Add accessible tooltips, notifications, and public export
 - [x] Verify desktop and mobile layouts
+- [x] Build entity profile card with hierarchical confidentiality controls
