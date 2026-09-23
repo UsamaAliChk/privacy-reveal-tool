@@ -1,25 +1,30 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { format } from "date-fns";
 import {
   Award,
   Building2,
+  CalendarIcon,
   Check,
-  Factory,
-  Globe2,
-  Lock,
+  ChevronDown,
+  ChevronUp,
+  CircleHelp,
+  Info,
+  LockKeyhole,
   MapPin,
   Plus,
   ShieldCheck,
   Trash2,
-  Unlock,
 } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import { Calendar } from "@/components/ui/calendar";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
@@ -27,396 +32,276 @@ import { cn } from "@/lib/utils";
 export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
-      { title: "Entity Profile | Disclosure Workspace" },
-      {
-        name: "description",
-        content: "Manage an entity profile with section-level confidentiality controls.",
-      },
-      { property: "og:title", content: "Entity Profile | Disclosure Workspace" },
-      {
-        property: "og:description",
-        content: "A secure workspace for managing entity information and disclosure visibility.",
-      },
+      { title: "B1 Company Information | VSME Reporting" },
+      { name: "description", content: "Prepare company information for a VSME sustainability report with section-level confidentiality controls." },
+      { property: "og:title", content: "B1 Company Information | VSME Reporting" },
+      { property: "og:description", content: "A structured VSME company information form with inherited confidentiality controls." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
     ],
   }),
-  component: EntityProfile,
+  component: CompanyInformation,
 });
 
 type SectionId = "general" | "subsidiaries" | "certifications" | "properties";
+type Subsidiary = { id: number; name: string; address: string };
+type Certification = { id: number; scheme: string; issuer: string; rating: string; date?: Date };
+type Property = { id: number; address: string; coordinates: string };
 
-type Subsidiary = {
-  id: number;
-  name: string;
-  jurisdiction: string;
-  ownership: string;
+const initialFields = {
+  organization: "SCOPE GROUP AS",
+  nace: "",
+  revenue: "100000",
+  balance: "0",
+  employees: "0",
+  contactName: "Usama Ali",
+  contactEmail: "ua63510@gmail.com",
 };
 
-const generalFields = [
-  { id: "legalName", label: "Legal entity name", value: "Northstar Dynamics, Inc." },
-  { id: "tradingName", label: "Trading name", value: "Northstar Dynamics" },
-  { id: "registration", label: "Registration number", value: "US-DE-8472916" },
-  { id: "entityType", label: "Legal form", value: "Corporation" },
-  { id: "founded", label: "Year established", value: "2012" },
-  { id: "industry", label: "Primary industry", value: "Advanced manufacturing" },
-  { id: "employees", label: "Employees", value: "428" },
-  { id: "website", label: "Website", value: "northstardynamics.example" },
-  { id: "headquarters", label: "Headquarters", value: "Boston, Massachusetts" },
-  { id: "reportingPeriod", label: "Reporting period", value: "FY 2026" },
-];
-
 const initialSubsidiaries: Subsidiary[] = [
-  { id: 1, name: "Northstar Robotics GmbH", jurisdiction: "Germany", ownership: "100%" },
-  { id: 2, name: "Northstar Systems Ltd.", jurisdiction: "United Kingdom", ownership: "85%" },
-  { id: 3, name: "Polaris Materials, Inc.", jurisdiction: "United States", ownership: "72%" },
+  { id: 1, name: "XYZ", address: "Village Vero Post office Chakbhoun Teh/Dist Chakwal" },
+  { id: 2, name: "ABC", address: "Village Vero Post office Chakbhoun Teh/Dist Chakwal" },
 ];
 
-const certifications = [
-  { name: "ISO 14001", detail: "Environmental management", valid: "Valid through 2028" },
-  { name: "ISO 9001", detail: "Quality management", valid: "Valid through 2027" },
-  { name: "EcoVadis Gold", detail: "Sustainability rating", valid: "Awarded 2026" },
-];
-
-const properties = [
-  { name: "Boston Headquarters", detail: "Office · 84,000 sq ft", location: "Massachusetts, US" },
-  { name: "Dresden Production Site", detail: "Manufacturing · 126,000 sq ft", location: "Saxony, DE" },
-  { name: "Cambridge Research Lab", detail: "R&D · 42,500 sq ft", location: "Cambridgeshire, UK" },
-];
-
-function ConfidentialityStatus({ inherited, confidential }: { inherited: boolean; confidential: boolean }) {
-  if (inherited) {
-    return (
-      <Badge className="gap-1.5 border-confidential-border bg-confidential-soft text-confidential shadow-none hover:bg-confidential-soft">
-        <ShieldCheck className="size-3.5" aria-hidden="true" />
-        Inherited
-      </Badge>
-    );
-  }
-
-  return (
-    <Badge
-      className={cn(
-        "gap-1.5 border-transparent shadow-none",
-        confidential
-          ? "bg-confidential-soft text-confidential hover:bg-confidential-soft"
-          : "bg-public-soft text-public hover:bg-public-soft",
-      )}
-    >
-      {confidential ? <Lock className="size-3.5" /> : <Unlock className="size-3.5" />}
-      {confidential ? "Confidential" : "Public"}
-    </Badge>
-  );
-}
-
-function SectionHeader({
+function PrivacyControl({
   id,
-  title,
-  description,
-  icon: Icon,
-  masterConfidential,
-  confidential,
+  master,
+  checked,
   onChange,
 }: {
   id: SectionId;
-  title: string;
-  description: string;
-  icon: typeof Building2;
-  masterConfidential: boolean;
-  confidential: boolean;
-  onChange: (id: SectionId, value: boolean) => void;
+  master: boolean;
+  checked: boolean;
+  onChange: (id: SectionId, checked: boolean) => void;
 }) {
-  const effectiveConfidential = masterConfidential || confidential;
-
+  const effective = master || checked;
   return (
-    <div className="flex flex-col justify-between gap-4 border-b border-border bg-muted/40 px-5 py-4 sm:flex-row sm:items-center sm:px-6">
-      <div className="flex min-w-0 items-start gap-3">
-        <div className="grid size-9 shrink-0 place-items-center rounded-md border border-border bg-surface text-primary">
-          <Icon className="size-4.5" aria-hidden="true" />
-        </div>
-        <div>
-          <h2 className="font-display text-base font-semibold">{title}</h2>
-          <p className="mt-1 text-xs leading-5 text-muted-foreground">{description}</p>
-        </div>
-      </div>
-      <div className="flex shrink-0 items-center gap-2.5 self-end sm:self-auto">
-        <ConfidentialityStatus inherited={masterConfidential} confidential={effectiveConfidential} />
+    <div className="flex min-h-8 flex-wrap items-center justify-end gap-2">
+      {master ? (
         <Tooltip>
           <TooltipTrigger asChild>
-            <span className="inline-flex">
-              <Switch
-                checked={effectiveConfidential}
-                disabled={masterConfidential}
-                onCheckedChange={(checked) => onChange(id, checked)}
-                aria-label={`Mark ${title} confidential`}
-                className="data-[state=checked]:bg-confidential"
-              />
-            </span>
+            <Badge variant="outline" className="gap-1.5 border-primary/20 bg-primary/8 text-primary shadow-none">
+              <ShieldCheck className="size-3.5" /> Inherited from card
+            </Badge>
           </TooltipTrigger>
-          <TooltipContent>
-            {masterConfidential
-              ? "Inherited from Card Confidentiality"
-              : effectiveConfidential
-                ? "Make this section public"
-                : "Make this section confidential"}
-          </TooltipContent>
+          <TooltipContent>The card setting protects this entire section.</TooltipContent>
         </Tooltip>
+      ) : (
+        <span className={cn("text-xs font-medium", effective ? "text-confidential" : "text-muted-foreground")}>
+          {effective ? "Confidential" : "This content is confidential"}
+        </span>
+      )}
+      <Switch
+        checked={effective}
+        disabled={master}
+        onCheckedChange={(value) => onChange(id, value)}
+        aria-label={`Set ${id} confidentiality`}
+        className="data-[state=checked]:bg-confidential"
+      />
+    </div>
+  );
+}
+
+function CurrencyField({ id, label, value, onChange }: { id: string; label: string; value: string; onChange: (value: string) => void }) {
+  return (
+    <div className="space-y-2">
+      <Label htmlFor={id}>{label}</Label>
+      <div className="flex">
+        <Input id={id} value={value} onChange={(event) => onChange(event.target.value)} className="rounded-r-none bg-muted/35" inputMode="decimal" />
+        <span className="inline-flex min-w-14 items-center justify-center rounded-r-md border border-l-0 border-input bg-secondary px-3 text-xs font-semibold text-muted-foreground">NOK</span>
       </div>
     </div>
   );
 }
 
-function EntityProfile() {
+function SectionHeading({ icon: Icon, title, description, id, master, checked, onChange }: {
+  icon: typeof Building2;
+  title: string;
+  description?: string;
+  id: SectionId;
+  master: boolean;
+  checked: boolean;
+  onChange: (id: SectionId, checked: boolean) => void;
+}) {
+  return (
+    <div className="flex flex-col justify-between gap-3 border-b border-border pb-4 sm:flex-row sm:items-center">
+      <div className="flex items-start gap-3">
+        <div className="grid size-9 shrink-0 place-items-center rounded-md bg-primary/8 text-primary"><Icon className="size-4" /></div>
+        <div>
+          <h2 className="font-display text-xl leading-none text-foreground">{title}</h2>
+          {description && <p className="mt-1.5 text-xs leading-5 text-muted-foreground">{description}</p>}
+        </div>
+      </div>
+      <PrivacyControl id={id} master={master} checked={checked} onChange={onChange} />
+    </div>
+  );
+}
+
+function CompanyInformation() {
+  const [expanded, setExpanded] = useState(true);
   const [masterConfidential, setMasterConfidential] = useState(false);
-  const [sectionConfidential, setSectionConfidential] = useState<Record<SectionId, boolean>>({
-    general: false,
-    subsidiaries: true,
-    certifications: false,
-    properties: false,
-  });
-  const [fields, setFields] = useState(() => Object.fromEntries(generalFields.map((field) => [field.id, field.value])));
+  const [consolidated, setConsolidated] = useState(true);
+  const [confidential, setConfidential] = useState<Record<SectionId, boolean>>({ general: false, subsidiaries: false, certifications: false, properties: false });
+  const [fields, setFields] = useState(initialFields);
+  const [country, setCountry] = useState("norway");
+  const [methodology, setMethodology] = useState("period-end");
+  const [headcount, setHeadcount] = useState("headcount");
   const [subsidiaries, setSubsidiaries] = useState(initialSubsidiaries);
-  const [nextSubsidiaryId, setNextSubsidiaryId] = useState(4);
+  const [certifications, setCertifications] = useState<Certification[]>([
+    { id: 1, scheme: "ISO 14001:2015 Environmental", issuer: "SGS", rating: "97/100", date: new Date(2026, 7, 31) },
+  ]);
+  const [properties, setProperties] = useState<Property[]>([
+    { id: 1, address: "Statute of Dr. Ambedkar, Gandhidham, Gujarat 370201, India", coordinates: "23.064957, 70.130022" },
+  ]);
 
-  const updateSection = (id: SectionId, value: boolean) => {
-    setSectionConfidential((current) => ({ ...current, [id]: value }));
-    toast.success(`${sectionTitles[id]} is now ${value ? "confidential" : "public"}`);
+  const setSection = (id: SectionId, value: boolean) => {
+    setConfidential((current) => ({ ...current, [id]: value }));
+    toast.success(`${sectionNames[id]} is now ${value ? "confidential" : "public"}`);
   };
-
-  const updateMaster = (value: boolean) => {
+  const setMaster = (value: boolean) => {
     setMasterConfidential(value);
     toast.success(value ? "Entire card marked confidential" : "Card-level confidentiality removed", {
-      description: value ? "All sections now inherit this setting." : "Section-level settings have been restored.",
+      description: value ? "Every section now inherits this setting." : "Individual section settings are active again.",
     });
   };
-
-  const addSubsidiary = () => {
-    const id = nextSubsidiaryId;
-    setNextSubsidiaryId((current) => current + 1);
-    setSubsidiaries((current) => [
-      ...current,
-      { id, name: "New subsidiary", jurisdiction: "Jurisdiction", ownership: "100%" },
-    ]);
-    toast.success("Subsidiary added");
-  };
-
-  const removeSubsidiary = (id: number, name: string) => {
-    setSubsidiaries((current) => current.filter((subsidiary) => subsidiary.id !== id));
-    toast.success(`${name} removed`);
-  };
+  const updateField = (key: keyof typeof initialFields, value: string) => setFields((current) => ({ ...current, [key]: value }));
+  const updateSubsidiary = (id: number, key: "name" | "address", value: string) => setSubsidiaries((rows) => rows.map((row) => row.id === id ? { ...row, [key]: value } : row));
+  const updateCertification = (id: number, key: keyof Omit<Certification, "id" | "date">, value: string) => setCertifications((rows) => rows.map((row) => row.id === id ? { ...row, [key]: value } : row));
+  const updateProperty = (id: number, address: string) => setProperties((rows) => rows.map((row) => row.id === id ? { ...row, address } : row));
 
   return (
     <TooltipProvider delayDuration={250}>
-      <main className="min-h-screen bg-background text-foreground">
-        <header className="border-b border-border bg-surface">
-          <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-4 sm:px-6 lg:px-8">
-            <div className="flex items-center gap-3">
-              <div className="grid size-9 place-items-center rounded-md bg-primary text-primary-foreground shadow-sm">
-                <Building2 className="size-5" aria-hidden="true" />
+      <main className="min-h-screen bg-background px-3 py-5 text-foreground sm:px-6 sm:py-10 lg:py-14">
+        <article className="mx-auto max-w-5xl overflow-hidden rounded-lg border border-border bg-card shadow-panel">
+          <header className="border-b border-border bg-card px-5 py-5 sm:px-8 sm:py-6">
+            <div className="flex flex-col justify-between gap-5 sm:flex-row sm:items-start">
+              <div className="flex items-start gap-3.5">
+                <div className="grid size-11 shrink-0 place-items-center rounded-full bg-primary font-semibold text-primary-foreground shadow-sm">B1</div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h1 className="font-display text-2xl leading-none sm:text-3xl">Company Information</h1>
+                    <Tooltip>
+                      <TooltipTrigger asChild><Button variant="ghost" size="icon" className="size-7 text-muted-foreground" aria-label="About this module"><Info /></Button></TooltipTrigger>
+                      <TooltipContent>Core undertaking and contact information for the VSME report.</TooltipContent>
+                    </Tooltip>
+                    <Button variant="ghost" size="icon" className="size-7 text-muted-foreground" onClick={() => setExpanded((value) => !value)} aria-label={expanded ? "Collapse module" : "Expand module"}>
+                      {expanded ? <ChevronUp /> : <ChevronDown />}
+                    </Button>
+                  </div>
+                  <div className="mt-3 flex flex-wrap items-center gap-2">
+                    <Badge className="bg-foreground text-background hover:bg-foreground">Not Started</Badge>
+                    <Badge variant="secondary" className="border border-primary/15 bg-primary/8 text-primary">Basic Module</Badge>
+                  </div>
+                </div>
               </div>
-              <div>
-                <p className="font-display text-sm font-semibold sm:text-base">Entity Registry</p>
-                <p className="hidden text-xs text-muted-foreground sm:block">Organization record</p>
+              <div className="sm:text-right">
+                <p className="text-[11px] font-semibold uppercase text-muted-foreground">Current status</p>
+                <p className="mt-1 text-sm font-semibold">Not Started</p>
+                <p className="mt-2 font-mono text-[10px] text-muted-foreground">ReportType: False</p>
               </div>
             </div>
-            <div className="flex items-center gap-2 text-xs text-muted-foreground">
-              <Check className="size-4 text-public" aria-hidden="true" />
-              Changes saved
-            </div>
-          </div>
-        </header>
+          </header>
 
-        <div className="mx-auto max-w-6xl px-4 py-8 sm:px-6 lg:px-8 lg:py-12">
-          <div className="mb-6">
-            <p className="text-sm font-medium text-primary">Organization settings</p>
-            <h1 className="mt-1 font-display text-3xl font-semibold tracking-normal">Entity profile</h1>
-            <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">
-              Maintain the organization record and control which groups are included in external disclosures.
-            </p>
-          </div>
-
-          <Card className={cn("overflow-hidden rounded-lg border-border shadow-panel", masterConfidential && "border-confidential-border")}>
-            <CardHeader className={cn("border-b border-border p-5 sm:p-6", masterConfidential && "bg-confidential-wash")}>
-              <div className="flex flex-col justify-between gap-5 sm:flex-row sm:items-center">
-                <div className="flex items-center gap-4">
-                  <div className={cn("grid size-12 shrink-0 place-items-center rounded-md bg-primary text-primary-foreground", masterConfidential && "bg-confidential")}>
-                    {masterConfidential ? <Lock className="size-5" /> : <Building2 className="size-5" />}
+          {expanded && <>
+            <div className="space-y-9 p-5 sm:p-8">
+              <div className={cn("flex flex-col justify-between gap-4 rounded-md border p-4 sm:flex-row sm:items-center", masterConfidential ? "border-confidential-border bg-confidential-wash" : "border-border bg-muted/45")}>
+                <div className="flex items-center gap-3">
+                  <div className={cn("grid size-9 place-items-center rounded-md", masterConfidential ? "bg-confidential-soft text-confidential" : "bg-card text-muted-foreground")}>
+                    <LockKeyhole className="size-4" />
                   </div>
                   <div>
-                    <div className="flex flex-wrap items-center gap-2">
-                      <h2 className="font-display text-xl font-semibold">Northstar Dynamics, Inc.</h2>
-                      <Badge variant="outline" className="bg-surface text-muted-foreground">Active</Badge>
-                    </div>
-                    <p className="mt-1 flex items-center gap-1.5 text-sm text-muted-foreground">
-                      <MapPin className="size-3.5" aria-hidden="true" /> Boston, Massachusetts · US-DE-8472916
-                    </p>
+                    <Label htmlFor="master-confidential" className="text-sm font-semibold">Mark entire section as confidential</Label>
+                    <p className="mt-1 text-xs text-muted-foreground">This setting overrides every section below.</p>
                   </div>
                 </div>
-
-                <div className="flex items-center justify-between gap-4 rounded-md border border-border bg-surface px-4 py-3 sm:justify-start">
-                  <div className="text-right">
-                    <Label htmlFor="card-confidentiality" className="text-sm font-semibold">Card Confidentiality</Label>
-                    <p className="mt-1 text-xs text-muted-foreground">
-                      {masterConfidential ? "All sections are protected" : "Set all sections at once"}
-                    </p>
-                  </div>
-                  <Switch
-                    id="card-confidentiality"
-                    checked={masterConfidential}
-                    onCheckedChange={updateMaster}
-                    className="data-[state=checked]:bg-confidential"
-                  />
-                </div>
+                <Switch id="master-confidential" checked={masterConfidential} onCheckedChange={setMaster} className="data-[state=checked]:bg-confidential" />
               </div>
-              {masterConfidential && (
-                <div className="mt-4 flex items-start gap-2 rounded-md border border-confidential-border bg-confidential-soft px-3 py-2.5 text-xs leading-5 text-confidential">
-                  <ShieldCheck className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
-                  Every section inherits Card Confidentiality. Turn it off to restore individual section settings.
-                </div>
-              )}
-            </CardHeader>
 
-            <CardContent className="p-0">
-              <section aria-labelledby="general-heading">
-                <SectionHeader
-                  id="general"
-                  title="General Information"
-                  description="Legal identity, operating details, and reporting profile"
-                  icon={Building2}
-                  masterConfidential={masterConfidential}
-                  confidential={sectionConfidential.general}
-                  onChange={updateSection}
-                />
-                <div className={cn("grid gap-x-6 gap-y-5 p-5 sm:grid-cols-2 sm:p-6", (masterConfidential || sectionConfidential.general) && "bg-confidential-wash/40")}>
-                  {generalFields.map((field) => (
-                    <div key={field.id} className="space-y-2">
-                      <Label htmlFor={field.id} className="text-xs text-muted-foreground">{field.label}</Label>
-                      <Input
-                        id={field.id}
-                        value={fields[field.id] ?? ""}
-                        onChange={(event) => setFields((current) => ({ ...current, [field.id]: event.target.value }))}
-                        className="h-10 bg-surface"
-                      />
-                    </div>
-                  ))}
+              <section className={cn("space-y-6", (masterConfidential || confidential.general) && "rounded-md bg-confidential-wash/60 p-4 sm:p-5")}>
+                <SectionHeading icon={Building2} title="General Information" description="Legal identity, financial scale, workforce, and reporting contact" id="general" master={masterConfidential} checked={confidential.general} onChange={setSection} />
+                <div className="grid gap-x-7 gap-y-5 md:grid-cols-2">
+                  <div className="space-y-2"><Label htmlFor="organization">Organization name</Label><Input id="organization" value={fields.organization} onChange={(e) => updateField("organization", e.target.value)} className="bg-muted/35" /></div>
+                  <div className="space-y-2"><Label htmlFor="nace">NACE code</Label><Input id="nace" value={fields.nace} onChange={(e) => updateField("nace", e.target.value)} placeholder="Enter code" className="bg-muted/35" /><p className="text-xs text-muted-foreground">European industrial classification code</p></div>
+                  <CurrencyField id="revenue" label="Revenue" value={fields.revenue} onChange={(value) => updateField("revenue", value)} />
+                  <CurrencyField id="balance" label="Balance sheet total" value={fields.balance} onChange={(value) => updateField("balance", value)} />
+                  <div className="space-y-2"><Label htmlFor="employees">Total number of employees</Label><Input id="employees" value={fields.employees} onChange={(e) => updateField("employees", e.target.value)} inputMode="numeric" className="bg-muted/35" /></div>
+                  <div className="space-y-2"><Label>Country</Label><Select value={country} onValueChange={setCountry}><SelectTrigger className="w-full bg-muted/35"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="norway">🇳🇴 Norway</SelectItem><SelectItem value="sweden">🇸🇪 Sweden</SelectItem><SelectItem value="denmark">🇩🇰 Denmark</SelectItem></SelectContent></Select></div>
+                  <div className="space-y-2"><Label>Employee counting methodology</Label><Select value={methodology} onValueChange={setMethodology}><SelectTrigger className="w-full bg-muted/35"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="period-end">At the end of the reporting period</SelectItem><SelectItem value="average">Average during the reporting period</SelectItem></SelectContent></Select></div>
+                  <div className="space-y-2"><Label>Headcount or FTE</Label><Select value={headcount} onValueChange={setHeadcount}><SelectTrigger className="w-full bg-muted/35"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="headcount">Headcount</SelectItem><SelectItem value="fte">Full-time equivalent (FTE)</SelectItem></SelectContent></Select></div>
+                </div>
+                <div className="border-t border-border pt-5">
+                  <h3 className="font-display text-lg">Contact person</h3>
+                  <div className="mt-4 grid gap-5 md:grid-cols-2">
+                    <div className="space-y-2"><Label htmlFor="contactName">Name of contact person</Label><Input id="contactName" value={fields.contactName} onChange={(e) => updateField("contactName", e.target.value)} className="bg-muted/35" /></div>
+                    <div className="space-y-2"><Label htmlFor="contactEmail">Email of contact person</Label><Input id="contactEmail" type="email" value={fields.contactEmail} onChange={(e) => updateField("contactEmail", e.target.value)} className="bg-muted/35" /></div>
+                  </div>
                 </div>
               </section>
 
-              <section aria-labelledby="subsidiaries-heading" className="border-t border-border">
-                <SectionHeader
-                  id="subsidiaries"
-                  title="Subsidiaries"
-                  description={`${subsidiaries.length} controlled corporate entities`}
-                  icon={Factory}
-                  masterConfidential={masterConfidential}
-                  confidential={sectionConfidential.subsidiaries}
-                  onChange={updateSection}
-                />
-                <div className={cn("p-5 sm:p-6", (masterConfidential || sectionConfidential.subsidiaries) && "bg-confidential-wash/40")}>
-                  <div className="overflow-hidden rounded-md border border-border bg-surface">
-                    {subsidiaries.length === 0 ? (
-                      <p className="px-4 py-8 text-center text-sm text-muted-foreground">No subsidiaries added.</p>
-                    ) : (
-                      <div className="divide-y divide-border">
-                        {subsidiaries.map((subsidiary) => (
-                          <div key={subsidiary.id} className="grid gap-3 px-4 py-4 sm:grid-cols-[minmax(0,1fr)_180px_80px_36px] sm:items-center">
-                            <div className="flex min-w-0 items-center gap-3">
-                              <div className="grid size-8 shrink-0 place-items-center rounded-md bg-muted text-muted-foreground">
-                                <Building2 className="size-4" aria-hidden="true" />
-                              </div>
-                              <p className="truncate text-sm font-semibold">{subsidiary.name}</p>
-                            </div>
-                            <p className="pl-11 text-sm text-muted-foreground sm:pl-0">{subsidiary.jurisdiction}</p>
-                            <Badge variant="secondary" className="ml-11 w-fit sm:ml-0">{subsidiary.ownership}</Badge>
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  onClick={() => removeSubsidiary(subsidiary.id, subsidiary.name)}
-                                  aria-label={`Remove ${subsidiary.name}`}
-                                  className="ml-auto size-8 text-muted-foreground hover:text-destructive"
-                                >
-                                  <Trash2 />
-                                </Button>
-                              </TooltipTrigger>
-                              <TooltipContent>Remove subsidiary</TooltipContent>
-                            </Tooltip>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                  <Button variant="outline" size="sm" onClick={addSubsidiary} className="mt-4">
-                    <Plus /> Add subsidiary
-                  </Button>
+              <div className="flex items-start gap-3 rounded-md border border-primary/15 bg-primary/6 p-4">
+                <Switch checked={consolidated} onCheckedChange={setConsolidated} aria-label="Consolidated report" className="mt-0.5 data-[state=checked]:bg-primary" />
+                <div><p className="text-sm font-semibold">Consolidated report</p><p className="mt-1 text-xs leading-5 text-muted-foreground">Choose whether the report should be consolidated or individual.</p></div>
+              </div>
+
+              <section className={cn("space-y-5", (masterConfidential || confidential.subsidiaries) && "rounded-md bg-confidential-wash/60 p-4 sm:p-5")}>
+                <SectionHeading icon={Building2} title="Subsidiaries" description={`${subsidiaries.length} corporate entities included in this report`} id="subsidiaries" master={masterConfidential} checked={confidential.subsidiaries} onChange={setSection} />
+                <div className="space-y-3">
+                  {subsidiaries.map((row) => <div key={row.id} className="grid gap-3 rounded-md border border-border bg-muted/30 p-4 sm:grid-cols-[minmax(150px,1fr)_minmax(240px,2fr)_36px] sm:items-end">
+                    <div className="space-y-2"><Label htmlFor={`sub-name-${row.id}`}>Name of subsidiary</Label><Input id={`sub-name-${row.id}`} value={row.name} onChange={(e) => updateSubsidiary(row.id, "name", e.target.value)} className="bg-card" /></div>
+                    <div className="space-y-2"><Label htmlFor={`sub-address-${row.id}`}>Address</Label><Input id={`sub-address-${row.id}`} value={row.address} onChange={(e) => updateSubsidiary(row.id, "address", e.target.value)} className="bg-card" /></div>
+                    <Tooltip><TooltipTrigger asChild><Button variant="ghost" size="icon" className="size-9 text-muted-foreground hover:text-destructive" onClick={() => { setSubsidiaries((rows) => rows.filter((item) => item.id !== row.id)); toast.success("Subsidiary removed"); }} aria-label={`Remove ${row.name}`}><Trash2 /></Button></TooltipTrigger><TooltipContent>Remove subsidiary</TooltipContent></Tooltip>
+                  </div>)}
                 </div>
+                <Button variant="outline" onClick={() => setSubsidiaries((rows) => [...rows, { id: Date.now(), name: "", address: "" }])}><Plus /> Add subsidiary</Button>
               </section>
 
-              <div className="grid border-t border-border lg:grid-cols-2 lg:divide-x lg:divide-border">
-                <section aria-labelledby="certifications-heading">
-                  <SectionHeader
-                    id="certifications"
-                    title="Certifications"
-                    description="Standards and third-party ratings"
-                    icon={Award}
-                    masterConfidential={masterConfidential}
-                    confidential={sectionConfidential.certifications}
-                    onChange={updateSection}
-                  />
-                  <div className={cn("space-y-3 p-5 sm:p-6", (masterConfidential || sectionConfidential.certifications) && "bg-confidential-wash/40")}>
-                    {certifications.map((certification) => (
-                      <div key={certification.name} className="flex items-start gap-3 rounded-md border border-border bg-surface p-3.5">
-                        <div className="grid size-8 shrink-0 place-items-center rounded-md bg-public-soft text-public">
-                          <Award className="size-4" aria-hidden="true" />
-                        </div>
-                        <div className="min-w-0">
-                          <p className="text-sm font-semibold">{certification.name}</p>
-                          <p className="mt-0.5 text-xs text-muted-foreground">{certification.detail}</p>
-                          <p className="mt-2 text-xs font-medium text-public">{certification.valid}</p>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
+              <div className="grid gap-8 border-t border-border pt-8 lg:grid-cols-2">
+                <section className={cn("space-y-5", (masterConfidential || confidential.certifications) && "rounded-md bg-confidential-wash/60 p-4")}>
+                  <SectionHeading icon={Award} title="Certifications and labeling schemes" description="E.g. ISO 14001, EMAS, EU Ecolabel" id="certifications" master={masterConfidential} checked={confidential.certifications} onChange={setSection} />
+                  {certifications.map((cert, index) => <div key={cert.id} className="relative rounded-md border border-border bg-muted/30 p-4">
+                    <div className="mb-4 flex items-center justify-between"><p className="text-xs font-semibold text-muted-foreground">Certification {index + 1}</p><Button variant="ghost" size="icon" className="size-7 text-muted-foreground hover:text-destructive" onClick={() => setCertifications((rows) => rows.filter((item) => item.id !== cert.id))} aria-label={`Remove certification ${index + 1}`}><Trash2 /></Button></div>
+                    <div className="grid gap-4 sm:grid-cols-2">
+                      <div className="space-y-2"><Label>Certification/labeling scheme</Label><Input value={cert.scheme} onChange={(e) => updateCertification(cert.id, "scheme", e.target.value)} className="bg-card" /></div>
+                      <div className="space-y-2"><Label>Issuer</Label><Input value={cert.issuer} onChange={(e) => updateCertification(cert.id, "issuer", e.target.value)} className="bg-card" /></div>
+                      <div className="space-y-2"><Label>Date</Label><Popover><PopoverTrigger asChild><Button variant="outline" className="w-full justify-start bg-card font-normal"><CalendarIcon />{cert.date ? format(cert.date, "MMM d, yyyy") : "Pick a date"}</Button></PopoverTrigger><PopoverContent className="w-auto p-0" align="start"><Calendar mode="single" selected={cert.date} onSelect={(date) => setCertifications((rows) => rows.map((item) => item.id === cert.id ? { ...item, date } : item))} initialFocus className="pointer-events-auto p-3" /></PopoverContent></Popover></div>
+                      <div className="space-y-2"><Label>Rating/score</Label><Input value={cert.rating} onChange={(e) => updateCertification(cert.id, "rating", e.target.value)} className="bg-card" /></div>
+                    </div>
+                  </div>)}
+                  <Button variant="outline" className="w-full border-dashed" onClick={() => setCertifications((rows) => [...rows, { id: Date.now(), scheme: "", issuer: "", rating: "" }])}><Plus /> Add certification</Button>
                 </section>
 
-                <section aria-labelledby="properties-heading" className="border-t border-border lg:border-t-0">
-                  <SectionHeader
-                    id="properties"
-                    title="Properties"
-                    description="Principal offices and operating sites"
-                    icon={MapPin}
-                    masterConfidential={masterConfidential}
-                    confidential={sectionConfidential.properties}
-                    onChange={updateSection}
-                  />
-                  <div className={cn("space-y-3 p-5 sm:p-6", (masterConfidential || sectionConfidential.properties) && "bg-confidential-wash/40")}>
-                    {properties.map((property) => (
-                      <div key={property.name} className="flex items-start gap-3 rounded-md border border-border bg-surface p-3.5">
-                        <div className="grid size-8 shrink-0 place-items-center rounded-md bg-muted text-primary">
-                          <MapPin className="size-4" aria-hidden="true" />
-                        </div>
-                        <div className="min-w-0">
-                          <p className="text-sm font-semibold">{property.name}</p>
-                          <p className="mt-0.5 text-xs text-muted-foreground">{property.detail}</p>
-                          <p className="mt-2 flex items-center gap-1.5 text-xs font-medium">
-                            <Globe2 className="size-3" aria-hidden="true" /> {property.location}
-                          </p>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
+                <section className={cn("space-y-5", (masterConfidential || confidential.properties) && "rounded-md bg-confidential-wash/60 p-4")}>
+                  <SectionHeading icon={MapPin} title="Properties" description="Addresses and geolocation for owned or operated sites" id="properties" master={masterConfidential} checked={confidential.properties} onChange={setSection} />
+                  {properties.map((property, index) => <div key={property.id} className="rounded-md border border-border bg-muted/30 p-4">
+                    <div className="mb-4 flex items-center justify-between"><p className="text-xs font-semibold text-muted-foreground">Property {index + 1}</p><Button variant="ghost" size="icon" className="size-7 text-muted-foreground hover:text-destructive" onClick={() => setProperties((rows) => rows.filter((item) => item.id !== property.id))} aria-label={`Remove property ${index + 1}`}><Trash2 /></Button></div>
+                    <Label htmlFor={`property-${property.id}`}>Address</Label>
+                    <div className="mt-2 rounded-md border border-border bg-card p-3">
+                      <div className="flex gap-2"><MapPin className="mt-0.5 size-4 shrink-0 text-primary" /><Input id={`property-${property.id}`} value={property.address} onChange={(e) => updateProperty(property.id, e.target.value)} className="h-auto border-0 p-0 shadow-none focus-visible:ring-0" /></div>
+                      <p className="ml-6 mt-2 font-mono text-[11px] text-muted-foreground">{property.coordinates}</p>
+                      <Button variant="link" className="ml-6 mt-1 h-auto p-0 text-xs" onClick={() => toast.info("Address editor opened")}>Edit address</Button>
+                    </div>
+                    <p className="mt-2 text-xs text-muted-foreground">Search for the address using Google Maps</p>
+                  </div>)}
+                  <Button variant="outline" className="w-full border-dashed" onClick={() => setProperties((rows) => [...rows, { id: Date.now(), address: "", coordinates: "Coordinates pending" }])}><Plus /> Add property</Button>
                 </section>
               </div>
-            </CardContent>
-          </Card>
-        </div>
+            </div>
+
+            <footer className="flex flex-col gap-4 border-t border-border bg-muted/45 px-5 py-5 sm:flex-row sm:items-center sm:justify-between sm:px-8">
+              <p className="text-xs text-muted-foreground">Last updated by <span className="font-medium text-foreground">Unknown</span>: Never</p>
+              <div className="flex items-center gap-3">
+                <Button variant="outline" onClick={() => toast.success("Draft saved", { description: "Your changes are ready to continue later." })}>Save Draft</Button>
+                <Button onClick={() => toast.success("Report submitted", { description: "B1 Company Information has been sent for review." })}><Check /> Submit</Button>
+              </div>
+            </footer>
+          </>}
+        </article>
       </main>
     </TooltipProvider>
   );
 }
 
-const sectionTitles: Record<SectionId, string> = {
+const sectionNames: Record<SectionId, string> = {
   general: "General Information",
   subsidiaries: "Subsidiaries",
   certifications: "Certifications",
