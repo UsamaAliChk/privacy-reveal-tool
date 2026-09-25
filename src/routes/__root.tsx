@@ -4,6 +4,7 @@ import {
   Link,
   createRootRouteWithContext,
   useRouter,
+  useRouterState,
   HeadContent,
   Scripts,
 } from "@tanstack/react-router";
@@ -12,6 +13,7 @@ import { useEffect, type ReactNode } from "react";
 import appCss from "../styles.css?url";
 import { reportLovableError } from "../lib/lovable-error-reporting";
 import { Toaster } from "../components/ui/sonner";
+import { cn } from "../lib/utils";
 
 function NotFoundComponent() {
   return (
@@ -117,11 +119,43 @@ function RootShell({ children }: { children: ReactNode }) {
   );
 }
 
+const moduleLinks = [
+  { to: "/", label: "B1 Company Information" },
+  { to: "/c2", label: "C2 Practices, Policies & Initiatives" },
+] as const;
+
+function ModuleSwitcher() {
+  const pathname = useRouterState({ select: (state) => state.location.pathname });
+
+  return (
+    <nav aria-label="Report modules" className="border-b border-border bg-card">
+      <div className="mx-auto flex max-w-5xl flex-wrap items-center justify-between gap-3 px-4 py-2.5 sm:px-6">
+        <span className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">VSME Sustainability Reporting</span>
+        <div className="flex items-center gap-2">
+          {moduleLinks.map((link) => (
+            <Link
+              key={link.to}
+              to={link.to}
+              className={cn(
+                "rounded-md px-3 py-1.5 text-xs font-medium transition-colors",
+                pathname === link.to ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted hover:text-foreground",
+              )}
+            >
+              {link.label}
+            </Link>
+          ))}
+        </div>
+      </div>
+    </nav>
+  );
+}
+
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
 
   return (
     <QueryClientProvider client={queryClient}>
+      <ModuleSwitcher />
       {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
       <Outlet />
       <Toaster position="bottom-right" richColors closeButton />

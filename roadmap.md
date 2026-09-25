@@ -7,3 +7,4 @@
 - [x] Verify desktop and mobile layouts
 - [x] Build entity profile card with hierarchical confidentiality controls
 - [x] Redesign B1 Company Information form from supplied references
+- [x] Add C2 practices, policies and initiatives module with confidentiality banner
