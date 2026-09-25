@@ -45,7 +45,7 @@ export const Route = createFileRoute("/")({
 
 type SectionId = "general" | "subsidiaries" | "certifications" | "properties";
 type Subsidiary = { id: number; name: string; address: string };
-type Certification = { id: number; scheme: string; issuer: string; rating: string; date?: Date };
+type Certification = { id: number; scheme: string; issuer: string; rating: string; date?: Date | undefined };
 type Property = { id: number; address: string; coordinates: string };
 
 const initialFields = {
@@ -263,7 +263,7 @@ function CompanyInformation() {
                     <div className="grid gap-4 sm:grid-cols-2">
                       <div className="space-y-2"><Label>Certification/labeling scheme</Label><Input value={cert.scheme} onChange={(e) => updateCertification(cert.id, "scheme", e.target.value)} className="bg-card" /></div>
                       <div className="space-y-2"><Label>Issuer</Label><Input value={cert.issuer} onChange={(e) => updateCertification(cert.id, "issuer", e.target.value)} className="bg-card" /></div>
-                      <div className="space-y-2"><Label>Date</Label><Popover><PopoverTrigger asChild><Button variant="outline" className="w-full justify-start bg-card font-normal"><CalendarIcon />{cert.date ? format(cert.date, "MMM d, yyyy") : "Pick a date"}</Button></PopoverTrigger><PopoverContent className="w-auto p-0" align="start"><Calendar mode="single" selected={cert.date} onSelect={(date) => setCertifications((rows) => rows.map((item) => item.id === cert.id ? { ...item, date } : item))} initialFocus className="pointer-events-auto p-3" /></PopoverContent></Popover></div>
+                      <div className="space-y-2"><Label>Date</Label><Popover><PopoverTrigger asChild><Button variant="outline" className="w-full justify-start bg-card font-normal"><CalendarIcon />{cert.date ? format(cert.date, "MMM d, yyyy") : "Pick a date"}</Button></PopoverTrigger><PopoverContent className="w-auto p-0" align="start"><Calendar mode="single" selected={cert.date} onSelect={(date) => setCertifications((rows) => rows.map((item) => item.id === cert.id ? { ...item, date: date ?? item.date } : item))} initialFocus className="pointer-events-auto p-3" /></PopoverContent></Popover></div>
                       <div className="space-y-2"><Label>Rating/score</Label><Input value={cert.rating} onChange={(e) => updateCertification(cert.id, "rating", e.target.value)} className="bg-card" /></div>
                     </div>
                   </div>)}
