@@ -45,7 +45,7 @@ export const Route = createFileRoute("/")({
 
 type SectionId = "general" | "subsidiaries" | "certifications" | "properties";
 type Subsidiary = { id: number; name: string; address: string };
-type Certification = { id: number; scheme: string; issuer: string; rating: string; date?: Date };
+type Certification = { id: number; scheme: string; issuer: string; rating: string; date?: Date | undefined };
 type Property = { id: number; address: string; coordinates: string };
 
 const initialFields = {
