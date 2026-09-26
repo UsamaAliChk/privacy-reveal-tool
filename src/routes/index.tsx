@@ -191,6 +191,7 @@ function CompanyInformation() {
                   <div className="mt-3 flex flex-wrap items-center gap-2">
                     <Badge className="bg-foreground text-background hover:bg-foreground">Not Started</Badge>
                     <Badge variant="secondary" className="border border-primary/15 bg-primary/8 text-primary">Basic Module</Badge>
+                    <Badge variant="outline" className="border-border bg-muted/60 text-muted-foreground">Required</Badge>
                   </div>
                 </div>
               </div>
