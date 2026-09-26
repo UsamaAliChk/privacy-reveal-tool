@@ -98,6 +98,7 @@ function C2Module() {
                       {completed ? "Completed" : "In Progress"}
                     </Badge>
                     <Badge variant="secondary" className="border border-primary/15 bg-primary/8 text-primary">Comprehensive Module</Badge>
+                    <Badge variant="outline" className="border-border bg-muted/60 text-muted-foreground">Volunteer</Badge>
                   </div>
                 </div>
               </div>
